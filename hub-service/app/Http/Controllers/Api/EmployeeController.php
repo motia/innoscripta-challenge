@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Validation\CountryValidationFactory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -16,8 +17,10 @@ class EmployeeController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $supported = implode(',', CountryValidationFactory::supportedCountries());
+
         $request->validate([
-            'country' => ['required', 'string', 'in:USA,Germany'],
+            'country' => ['required', 'string', "in:{$supported}"],
             'page' => ['sometimes', 'integer', 'min:1'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
         ]);
@@ -33,7 +36,8 @@ class EmployeeController extends Controller
         $offset = ($page - 1) * $perPage;
         $paginatedEmployees = array_slice($employees, $offset, $perPage);
 
-        $columns = $this->getColumnsForCountry($country);
+        $strategy = CountryValidationFactory::make($country);
+        $columns = $this->buildColumnDefinitions($strategy->listColumns());
 
         return response()->json([
             'data' => $paginatedEmployees,
@@ -48,20 +52,22 @@ class EmployeeController extends Controller
         ]);
     }
 
-    private function getColumnsForCountry(string $country): array
+    private function buildColumnDefinitions(array $columnKeys): array
     {
-        $baseColumns = [
-            ['key' => 'name', 'label' => 'Name', 'sortable' => true],
-            ['key' => 'last_name', 'label' => 'Last Name', 'sortable' => true],
-            ['key' => 'salary', 'label' => 'Salary', 'sortable' => true, 'format' => 'currency'],
+        $definitions = [
+            'id'        => ['key' => 'id',        'label' => 'ID',        'sortable' => true],
+            'name'      => ['key' => 'name',      'label' => 'Name',      'sortable' => true],
+            'last_name' => ['key' => 'last_name', 'label' => 'Last Name', 'sortable' => true],
+            'salary'    => ['key' => 'salary',    'label' => 'Salary',    'sortable' => true,  'format' => 'currency'],
+            'country'   => ['key' => 'country',   'label' => 'Country',   'sortable' => true],
+            'ssn'       => ['key' => 'ssn',       'label' => 'SSN',       'sortable' => false, 'masked' => true],
+            'address'   => ['key' => 'address',   'label' => 'Address',   'sortable' => false],
+            'goal'      => ['key' => 'goal',      'label' => 'Goal',      'sortable' => false],
+            'tax_id'    => ['key' => 'tax_id',    'label' => 'Tax ID',    'sortable' => false],
         ];
 
-        if (strtoupper($country) === 'USA') {
-            $baseColumns[] = ['key' => 'ssn', 'label' => 'SSN', 'sortable' => false, 'masked' => true];
-        } elseif (strtoupper($country) === 'GERMANY') {
-            $baseColumns[] = ['key' => 'goal', 'label' => 'Goal', 'sortable' => false];
-        }
-
-        return $baseColumns;
+        return array_values(array_filter(
+            array_map(fn($key) => $definitions[$key] ?? null, $columnKeys)
+        ));
     }
 }

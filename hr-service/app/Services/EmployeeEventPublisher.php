@@ -32,7 +32,7 @@ class EmployeeEventPublisher
 
     public function publishDeleted(array $employeeData, Carbon $timestamp): void
     {
-        $this->publish('EmployeeDeleted', $employeeData['country'] ?? 'USA', [
+        $this->publish('EmployeeDeleted', $employeeData['country'], [
             'employee_id' => $employeeData['id'],
             'employee' => $employeeData,
         ], $timestamp);

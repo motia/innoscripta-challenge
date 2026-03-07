@@ -55,55 +55,68 @@ class SchemaController extends Controller
 
     private function getDashboardSchema(string $country): array
     {
-        $widgets = [
-            [
-                'id' => 'employee_count',
-                'type' => 'stat_card',
-                'label' => 'Total Employees',
-                'data_source' => '/api/employees',
-                'data_key' => 'meta.total',
-                'icon' => 'users',
-                'channel' => "country.{$country}",
-            ],
-            [
-                'id' => 'average_salary',
-                'type' => 'stat_card',
-                'label' => 'Average Salary',
-                'data_source' => '/api/employees',
-                'data_key' => 'computed.average_salary',
-                'icon' => 'dollar-sign',
-                'format' => 'currency',
-                'channel' => "country.{$country}",
-            ],
-            [
-                'id' => 'completion_rate',
-                'type' => 'progress_card',
-                'label' => 'Data Completion Rate',
-                'data_source' => '/api/checklists',
-                'data_key' => 'summary.completion_percentage',
-                'icon' => 'check-circle',
-                'format' => 'percentage',
-                'channel' => "country.{$country}.checklists",
-            ],
-        ];
-
         if (strtoupper($country) === 'GERMANY') {
-            $widgets[] = [
-                'id' => 'goal_tracking',
-                'type' => 'list_card',
-                'label' => 'Goal Tracking',
-                'data_source' => '/api/employees',
-                'data_key' => 'data',
-                'display_fields' => ['name', 'goal'],
-                'icon' => 'target',
-                'channel' => "country.{$country}",
+            return [
+                'layout' => 'grid',
+                'columns' => 2,
+                'widgets' => [
+                    [
+                        'id' => 'employee_count',
+                        'type' => 'stat_card',
+                        'label' => 'Total Employees',
+                        'data_source' => '/api/employees',
+                        'data_key' => 'meta.total',
+                        'icon' => 'users',
+                        'channel' => "country.{$country}",
+                    ],
+                    [
+                        'id' => 'goal_tracking',
+                        'type' => 'list_card',
+                        'label' => 'Goal Tracking',
+                        'data_source' => '/api/employees',
+                        'data_key' => 'data',
+                        'display_fields' => ['name', 'goal'],
+                        'icon' => 'target',
+                        'channel' => "country.{$country}",
+                    ],
+                ],
             ];
         }
 
         return [
             'layout' => 'grid',
-            'columns' => strtoupper($country) === 'GERMANY' ? 4 : 3,
-            'widgets' => $widgets,
+            'columns' => 3,
+            'widgets' => [
+                [
+                    'id' => 'employee_count',
+                    'type' => 'stat_card',
+                    'label' => 'Total Employees',
+                    'data_source' => '/api/employees',
+                    'data_key' => 'meta.total',
+                    'icon' => 'users',
+                    'channel' => "country.{$country}",
+                ],
+                [
+                    'id' => 'average_salary',
+                    'type' => 'stat_card',
+                    'label' => 'Average Salary',
+                    'data_source' => '/api/employees',
+                    'data_key' => 'computed.average_salary',
+                    'icon' => 'dollar-sign',
+                    'format' => 'currency',
+                    'channel' => "country.{$country}",
+                ],
+                [
+                    'id' => 'completion_rate',
+                    'type' => 'progress_card',
+                    'label' => 'Data Completion Rate',
+                    'data_source' => '/api/checklists',
+                    'data_key' => 'summary.completion_percentage',
+                    'icon' => 'check-circle',
+                    'format' => 'percentage',
+                    'channel' => "country.{$country}.checklists",
+                ],
+            ],
         ];
     }
 

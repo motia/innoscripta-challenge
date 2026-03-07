@@ -36,9 +36,12 @@ services:
     volumes:
       - ./hub-service:/var/www/html
     depends_on:
-      - redis
-      - rabbitmq
-      - soketi
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      soketi:
+        condition: service_started
     networks:
       - hr-platform
 
@@ -74,9 +77,12 @@ services:
     volumes:
       - ./hr-service:/var/www/html
     depends_on:
-      - postgres
-      - redis
-      - rabbitmq
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - hr-platform
 
