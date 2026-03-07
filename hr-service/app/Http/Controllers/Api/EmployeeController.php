@@ -41,7 +41,7 @@ class EmployeeController extends Controller
     {
         $employee = Employee::create($request->validated());
 
-        $this->eventPublisher->publishCreated($employee);
+        $this->eventPublisher->publishCreated($employee, $employee->created_at);
 
         return response()->json(
             new EmployeeResource($employee),
@@ -71,7 +71,7 @@ class EmployeeController extends Controller
             $originalData
         ));
 
-        $this->eventPublisher->publishUpdated($employee, $changedFields);
+        $this->eventPublisher->publishUpdated($employee, $changedFields, $employee->updated_at);
 
         return new EmployeeResource($employee);
     }
@@ -85,7 +85,7 @@ class EmployeeController extends Controller
 
         $employee->delete();
 
-        $this->eventPublisher->publishDeleted($employeeData);
+        $this->eventPublisher->publishDeleted($employeeData, $employee->deleted_at);
 
         return response()->json(null, 204);
     }

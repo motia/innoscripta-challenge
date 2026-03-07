@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Employee;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
@@ -12,38 +13,38 @@ class EmployeeEventPublisher
 {
     private ?AMQPStreamConnection $connection = null;
 
-    public function publishCreated(Employee $employee): void
+    public function publishCreated(Employee $employee, Carbon $timestamp): void
     {
         $this->publish('EmployeeCreated', $employee->country, [
             'employee_id' => $employee->id,
             'employee' => $employee->toArray(),
-        ]);
+        ], $timestamp);
     }
 
-    public function publishUpdated(Employee $employee, array $changedFields = []): void
+    public function publishUpdated(Employee $employee, array $changedFields = [], Carbon $timestamp): void
     {
         $this->publish('EmployeeUpdated', $employee->country, [
             'employee_id' => $employee->id,
             'changed_fields' => $changedFields,
             'employee' => $employee->toArray(),
-        ]);
+        ], $timestamp);
     }
 
-    public function publishDeleted(array $employeeData): void
+    public function publishDeleted(array $employeeData, Carbon $timestamp): void
     {
         $this->publish('EmployeeDeleted', $employeeData['country'] ?? 'USA', [
             'employee_id' => $employeeData['id'],
             'employee' => $employeeData,
-        ]);
+        ], $timestamp);
     }
 
-    private function publish(string $eventType, string $country, array $data): void
+    private function publish(string $eventType, string $country, array $data, Carbon $timestamp): void
     {
         try {
             $payload = [
                 'event_type' => $eventType,
                 'event_id' => (string) Str::uuid(),
-                'timestamp' => now()->toIso8601String(),
+                'timestamp' => $timestamp->toIso8601String(),
                 'country' => $country,
                 'data' => $data,
             ];

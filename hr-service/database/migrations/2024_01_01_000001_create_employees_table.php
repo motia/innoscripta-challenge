@@ -27,6 +27,7 @@ return new class extends Migration
             $table->string('tax_id')->nullable();
 
             $table->timestamps();
+            $table->softDeletes();
 
             // Indexes
             $table->index('country');
