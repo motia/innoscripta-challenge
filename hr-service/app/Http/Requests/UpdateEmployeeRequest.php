@@ -15,7 +15,11 @@ class UpdateEmployeeRequest extends FormRequest
     public function rules(): array
     {
         $employee = $this->route('employee');
-        $country = $this->input('country', $employee?->country ?? 'USA');
+        $country = $this->input('country', $employee?->country);
+
+        if (!$country) {
+            return $this->baseRulesWithCountryRequired();
+        }
 
         try {
             $strategy = CountryValidationFactory::make($country);
@@ -29,19 +33,18 @@ class UpdateEmployeeRequest extends FormRequest
 
             return $rules;
         } catch (\InvalidArgumentException $e) {
-            return [
-                'name' => ['sometimes', 'string', 'max:255'],
-                'last_name' => ['sometimes', 'string', 'max:255'],
-                'salary' => ['sometimes', 'numeric', 'min:0'],
-                'country' => ['sometimes', 'string', 'in:USA,Germany'],
-            ];
+            return $this->baseRulesWithCountryRequired();
         }
     }
 
     public function messages(): array
     {
         $employee = $this->route('employee');
-        $country = $this->input('country', $employee?->country ?? 'USA');
+        $country = $this->input('country', $employee?->country);
+
+        if (!$country) {
+            return ['country.required' => 'Country is required.'];
+        }
 
         try {
             $strategy = CountryValidationFactory::make($country);
@@ -49,5 +52,17 @@ class UpdateEmployeeRequest extends FormRequest
         } catch (\InvalidArgumentException $e) {
             return [];
         }
+    }
+
+    private function baseRulesWithCountryRequired(): array
+    {
+        $supported = implode(',', CountryValidationFactory::supportedCountries());
+
+        return [
+            'name' => ['sometimes', 'string', 'max:255'],
+            'last_name' => ['sometimes', 'string', 'max:255'],
+            'salary' => ['sometimes', 'numeric', 'min:0'],
+            'country' => ['required', 'string', "in:{$supported}"],
+        ];
     }
 }

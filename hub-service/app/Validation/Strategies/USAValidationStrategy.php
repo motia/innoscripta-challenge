@@ -4,6 +4,11 @@ namespace App\Validation\Strategies;
 
 class USAValidationStrategy implements CountryValidationStrategy
 {
+    public function getCountryCode(): string
+    {
+        return 'USA';
+    }
+
     public function rules(): array
     {
         return [
@@ -46,6 +51,24 @@ class USAValidationStrategy implements CountryValidationStrategy
                 'rule' => 'required|string|min:1',
                 'message' => 'Address is required',
             ],
+        ];
+    }
+
+    public function customFields(): array
+    {
+        return ['ssn', 'address'];
+    }
+
+    public function listColumns(): array
+    {
+        return ['id', 'name', 'last_name', 'salary', 'country', 'ssn', 'address'];
+    }
+
+    public function extractCustomFields(array $employeeData): array
+    {
+        return [
+            'ssn' => $employeeData['ssn'] ?? null,
+            'address' => $employeeData['address'] ?? null,
         ];
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Validation\CountryValidationFactory;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -20,14 +21,11 @@ class EmployeeResource extends JsonResource
             'country' => $this->country,
         ];
 
-        if ($this->country === 'USA') {
-            $data['ssn'] = $this->ssn;
-            $data['address'] = $this->address;
-        }
-
-        if ($this->country === 'Germany') {
-            $data['goal'] = $this->goal;
-            $data['tax_id'] = $this->tax_id;
+        try {
+            $strategy = CountryValidationFactory::make($this->country);
+            $customFields = $strategy->extractCustomFields($this->resource->toArray());
+            $data = array_merge($data, $customFields);
+        } catch (\InvalidArgumentException $e) {
         }
 
         return $data;
