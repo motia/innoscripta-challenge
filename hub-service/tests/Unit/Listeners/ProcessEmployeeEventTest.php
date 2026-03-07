@@ -33,8 +33,10 @@ class ProcessEmployeeEventTest extends TestCase
 
     public function test_handle_created_caches_employee(): void
     {
-        Cache::shouldReceive('put')->twice();
-        Cache::shouldReceive('get')->once()->andReturn([]);
+        Event::fake([EmployeeUpdated::class, ChecklistUpdated::class]);
+
+        Cache::shouldReceive('put')->twice()->andReturnNull();
+        Cache::shouldReceive('get')->once()->with('employees:USA:list', [])->andReturn([]);
 
         $this->checklistService->shouldReceive('invalidateCache')
             ->once()
@@ -44,8 +46,6 @@ class ProcessEmployeeEventTest extends TestCase
             ->once()
             ->with('USA')
             ->andReturn(['summary' => []]);
-
-        Event::fake([EmployeeUpdated::class, ChecklistUpdated::class]);
 
         $payload = [
             'event_id' => 'test-123',
@@ -68,12 +68,14 @@ class ProcessEmployeeEventTest extends TestCase
 
     public function test_handle_deleted_removes_employee_from_cache(): void
     {
-        Cache::shouldReceive('forget')->once()->with('employees:USA:1');
-        Cache::shouldReceive('get')->once()->andReturn([
+        Event::fake([EmployeeDeleted::class, ChecklistUpdated::class]);
+
+        Cache::shouldReceive('forget')->once()->with('employees:USA:1')->andReturnNull();
+        Cache::shouldReceive('get')->once()->with('employees:USA:list', [])->andReturn([
             ['id' => 1, 'name' => 'John'],
             ['id' => 2, 'name' => 'Jane'],
         ]);
-        Cache::shouldReceive('put')->once();
+        Cache::shouldReceive('put')->once()->andReturnNull();
 
         $this->checklistService->shouldReceive('invalidateCache')
             ->once()
@@ -83,8 +85,6 @@ class ProcessEmployeeEventTest extends TestCase
             ->once()
             ->with('USA')
             ->andReturn(['summary' => []]);
-
-        Event::fake([EmployeeDeleted::class, ChecklistUpdated::class]);
 
         $payload = [
             'event_id' => 'test-456',
@@ -105,13 +105,13 @@ class ProcessEmployeeEventTest extends TestCase
 
     public function test_handle_updated_broadcasts_changed_fields(): void
     {
-        Cache::shouldReceive('put')->twice();
-        Cache::shouldReceive('get')->once()->andReturn([]);
+        Event::fake([EmployeeUpdated::class, ChecklistUpdated::class]);
+
+        Cache::shouldReceive('put')->twice()->andReturnNull();
+        Cache::shouldReceive('get')->once()->with('employees:Germany:list', [])->andReturn([]);
 
         $this->checklistService->shouldReceive('invalidateCache')->once();
         $this->checklistService->shouldReceive('getChecklist')->once()->andReturn(['summary' => []]);
-
-        Event::fake([EmployeeUpdated::class, ChecklistUpdated::class]);
 
         $payload = [
             'event_id' => 'test-789',
