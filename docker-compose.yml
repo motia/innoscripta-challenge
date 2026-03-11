@@ -18,7 +18,7 @@ services:
       - APP_KEY=${APP_KEY:-base64:your-app-key-here}
       - DB_CONNECTION=sqlite
       - CACHE_DRIVER=redis
-      - QUEUE_CONNECTION=rabbitmq
+      - QUEUE_CONNECTION=redis
       - BROADCAST_DRIVER=pusher
       - REDIS_HOST=redis
       - REDIS_PORT=6379

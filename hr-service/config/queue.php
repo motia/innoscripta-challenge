@@ -24,7 +24,7 @@ return [
 
         'rabbitmq' => [
             'driver' => 'rabbitmq',
-            'queue' => env('RABBITMQ_QUEUE', 'hr_service_queue'),
+            'queue' => env('RABBITMQ_QUEUE', 'hub_service_events'),
             'connection' => 'default',
 
             'hosts' => [
