@@ -41,8 +41,8 @@ RUN composer install --no-scripts --no-autoloader --prefer-dist
 # Copy application files
 COPY . .
 
-# Generate autoloader
-RUN composer dump-autoload --optimize
+# Generate autoloader (skip scripts to avoid dev-only providers)
+RUN composer dump-autoload --optimize --no-scripts
 
 # Copy nginx configuration
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf
@@ -83,8 +83,8 @@ RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --optim
 # Copy application files
 COPY . .
 
-# Generate optimized autoloader
-RUN composer dump-autoload --optimize --no-dev
+# Generate optimized autoloader (skip scripts to avoid dev-only providers)
+RUN composer dump-autoload --optimize --no-dev --no-scripts
 
 # Copy nginx configuration
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf
