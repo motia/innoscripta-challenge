@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Validation\CountryValidationFactory;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class ChecklistService
@@ -120,5 +121,152 @@ class ChecklistService
     public function invalidateCache(string $country): void
     {
         Cache::forget("checklists:{$country}");
+    }
+
+    /**
+     * Apply delta update for employee created/updated.
+     * Uses Redis lock to prevent race conditions.
+     */
+    public function applyEmployeeDelta(string $country, array $employee, ?array $previousEmployee = null): void
+    {
+        $lockKey = "checklists:{$country}:lock";
+        $cacheKey = "checklists:{$country}";
+
+        $lock = Cache::lock($lockKey, 10);
+
+        try {
+            $lock->block(5);
+
+            $checklist = Cache::get($cacheKey);
+
+            if (!$checklist) {
+                $checklist = $this->calculateChecklist($country);
+                Cache::put($cacheKey, $checklist, now()->addMinutes(self::CACHE_TTL_MINUTES));
+                return;
+            }
+
+            $strategy = CountryValidationFactory::make($country);
+            $checklistRules = $strategy->checklistRules();
+            $newEmployeeChecklist = $this->validateEmployee($employee, $checklistRules);
+
+            $wasComplete = false;
+            $existingIndex = null;
+
+            foreach ($checklist['employees'] as $index => $empChecklist) {
+                if ($empChecklist['employee_id'] === $employee['id']) {
+                    $wasComplete = $empChecklist['is_complete'];
+                    $existingIndex = $index;
+                    break;
+                }
+            }
+
+            if ($existingIndex !== null) {
+                $checklist['employees'][$existingIndex] = $newEmployeeChecklist;
+            } else {
+                $checklist['employees'][] = $newEmployeeChecklist;
+                $checklist['summary']['total_employees']++;
+            }
+
+            if ($existingIndex !== null) {
+                if ($wasComplete && !$newEmployeeChecklist['is_complete']) {
+                    $checklist['summary']['complete']--;
+                    $checklist['summary']['incomplete']++;
+                } elseif (!$wasComplete && $newEmployeeChecklist['is_complete']) {
+                    $checklist['summary']['complete']++;
+                    $checklist['summary']['incomplete']--;
+                }
+            } else {
+                if ($newEmployeeChecklist['is_complete']) {
+                    $checklist['summary']['complete']++;
+                } else {
+                    $checklist['summary']['incomplete']++;
+                }
+            }
+
+            $checklist['summary']['completion_percentage'] = $checklist['summary']['total_employees'] > 0
+                ? round(($checklist['summary']['complete'] / $checklist['summary']['total_employees']) * 100, 2)
+                : 0;
+
+            Cache::put($cacheKey, $checklist, now()->addMinutes(self::CACHE_TTL_MINUTES));
+
+            Log::debug('Applied employee delta to checklist cache', [
+                'country' => $country,
+                'employee_id' => $employee['id'],
+                'was_update' => $existingIndex !== null,
+            ]);
+
+        } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
+            Log::warning('Failed to acquire checklist lock, falling back to invalidation', [
+                'country' => $country,
+            ]);
+            $this->invalidateCache($country);
+        } finally {
+            $lock?->release();
+        }
+    }
+
+    /**
+     * Apply delta update for employee deleted.
+     * Uses Redis lock to prevent race conditions.
+     */
+    public function applyEmployeeDeleteDelta(string $country, int $employeeId): void
+    {
+        $lockKey = "checklists:{$country}:lock";
+        $cacheKey = "checklists:{$country}";
+
+        $lock = Cache::lock($lockKey, 10);
+
+        try {
+            $lock->block(5);
+
+            $checklist = Cache::get($cacheKey);
+
+            if (!$checklist) {
+                return;
+            }
+
+            $wasComplete = false;
+            $foundIndex = null;
+
+            foreach ($checklist['employees'] as $index => $empChecklist) {
+                if ($empChecklist['employee_id'] === $employeeId) {
+                    $wasComplete = $empChecklist['is_complete'];
+                    $foundIndex = $index;
+                    break;
+                }
+            }
+
+            if ($foundIndex === null) {
+                return;
+            }
+
+            array_splice($checklist['employees'], $foundIndex, 1);
+
+            $checklist['summary']['total_employees']--;
+            if ($wasComplete) {
+                $checklist['summary']['complete']--;
+            } else {
+                $checklist['summary']['incomplete']--;
+            }
+
+            $checklist['summary']['completion_percentage'] = $checklist['summary']['total_employees'] > 0
+                ? round(($checklist['summary']['complete'] / $checklist['summary']['total_employees']) * 100, 2)
+                : 0;
+
+            Cache::put($cacheKey, $checklist, now()->addMinutes(self::CACHE_TTL_MINUTES));
+
+            Log::debug('Applied employee delete delta to checklist cache', [
+                'country' => $country,
+                'employee_id' => $employeeId,
+            ]);
+
+        } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
+            Log::warning('Failed to acquire checklist lock for delete, falling back to invalidation', [
+                'country' => $country,
+            ]);
+            $this->invalidateCache($country);
+        } finally {
+            $lock?->release();
+        }
     }
 }

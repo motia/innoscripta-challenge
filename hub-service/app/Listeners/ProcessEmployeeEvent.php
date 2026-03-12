@@ -64,7 +64,7 @@ class ProcessEmployeeEvent
                 'deleted' => $this->removeEmployeeFromCache($country, $employeeId),
             };
 
-            $this->invalidateRelatedCaches($country, $employeeId);
+            $this->applyChecklistDelta($eventType, $country, $employee, $employeeId);
 
             $this->broadcastUpdates($eventType, $country, $employee, $employeeId, $payload);
 
@@ -124,9 +124,16 @@ class ProcessEmployeeEvent
         Cache::put($listKey, $employees, now()->addHours(self::EMPLOYEE_CACHE_TTL_HOURS));
     }
 
-    private function invalidateRelatedCaches(string $country, ?int $employeeId): void
+    /**
+     * Apply delta update to checklist cache based on event type.
+     * Uses Redis locking to prevent race conditions with concurrent workers.
+     */
+    private function applyChecklistDelta(string $eventType, string $country, ?array $employee, ?int $employeeId): void
     {
-        $this->checklistService->invalidateCache($country);
+        match ($eventType) {
+            'created', 'updated' => $this->checklistService->applyEmployeeDelta($country, $employee),
+            'deleted' => $this->checklistService->applyEmployeeDeleteDelta($country, $employeeId),
+        };
     }
 
     private function broadcastUpdates(

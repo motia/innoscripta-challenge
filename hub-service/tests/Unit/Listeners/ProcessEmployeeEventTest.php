@@ -38,9 +38,15 @@ class ProcessEmployeeEventTest extends TestCase
         Cache::shouldReceive('put')->twice()->andReturnNull();
         Cache::shouldReceive('get')->once()->with('employees:USA:list', [])->andReturn([]);
 
-        $this->checklistService->shouldReceive('invalidateCache')
+        $employee = [
+            'id' => 1,
+            'name' => 'John',
+            'country' => 'USA',
+        ];
+
+        $this->checklistService->shouldReceive('applyEmployeeDelta')
             ->once()
-            ->with('USA');
+            ->with('USA', $employee);
 
         $this->checklistService->shouldReceive('getChecklist')
             ->once()
@@ -52,11 +58,7 @@ class ProcessEmployeeEventTest extends TestCase
             'country' => 'USA',
             'data' => [
                 'employee_id' => 1,
-                'employee' => [
-                    'id' => 1,
-                    'name' => 'John',
-                    'country' => 'USA',
-                ],
+                'employee' => $employee,
             ],
         ];
 
@@ -77,9 +79,9 @@ class ProcessEmployeeEventTest extends TestCase
         ]);
         Cache::shouldReceive('put')->once()->andReturnNull();
 
-        $this->checklistService->shouldReceive('invalidateCache')
+        $this->checklistService->shouldReceive('applyEmployeeDeleteDelta')
             ->once()
-            ->with('USA');
+            ->with('USA', 1);
 
         $this->checklistService->shouldReceive('getChecklist')
             ->once()
@@ -110,7 +112,7 @@ class ProcessEmployeeEventTest extends TestCase
         Cache::shouldReceive('put')->twice()->andReturnNull();
         Cache::shouldReceive('get')->once()->with('employees:Germany:list', [])->andReturn([]);
 
-        $this->checklistService->shouldReceive('invalidateCache')->once();
+        $this->checklistService->shouldReceive('applyEmployeeDelta')->once();
         $this->checklistService->shouldReceive('getChecklist')->once()->andReturn(['summary' => []]);
 
         $payload = [
