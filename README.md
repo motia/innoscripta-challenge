@@ -40,7 +40,7 @@ This platform consists of two Laravel microservices that form a real-time, event
 | Backend Framework | Laravel 11 | Ecosystem maturity, built-in queues, broadcasting, caching |
 | Database | PostgreSQL | Reliable relational store for HR Service employee data |
 | Message Broker | RabbitMQ | Durable event delivery, routing via exchanges |
-| Cache | Redis | Fast in-memory store; native Laravel cache driver support |
+| Cache & Queue | Redis | Fast in-memory store for HubService cache **and** Laravel queue driver (keeps job processing separate from RabbitMQ) |
 | WebSockets | Soketi | Self-hosted Pusher-compatible server; no external dependencies |
 | Containerization | Docker Compose | One-command setup for all services |
 
@@ -148,14 +148,25 @@ employee.germany.updated
 
 This allows future consumers to subscribe only to specific countries or event types without changing the publisher.
 
-### 4. Soketi Over Pusher
+### 4. Redis Queues for Internal Jobs, RabbitMQ for Service Events
+
+HubService keeps two distinct messaging concerns:
+
+| Lane | Transport | Purpose | Example Process |
+|---|---|---|---|
+| Inter-service events | RabbitMQ topic exchange (`employee_events`) | HR Service publishes employee lifecycle events that HubService consumes | `rabbitmq:consume --queue=hub_service_events --routing-key=employee.#` |
+| In-app background jobs (broadcasts, cache maintenance) | Redis queue (`QUEUE_CONNECTION=redis`) | Laravel jobs dispatched by HubService stay on Redis so they never compete with the RabbitMQ consumer | Supervisor runs `php artisan queue:work --sleep=1 --tries=3` |
+
+This separation prevents the custom RabbitMQ consumer from fighting with Laravel's job worker for the same queue, while still allowing us to use RabbitMQ for durable cross-service messaging.
+
+### 5. Soketi Over Pusher
 
 Soketi is self-hosted and Pusher-protocol compatible. This means:
 - No external API keys needed
 - Entire system runs locally with `docker-compose up -d`
 - Laravel Broadcasting works without modification
 
-### 5. Redis as Cache (not Memcached)
+### 6. Redis as Cache (not Memcached)
 
 Redis was chosen over Memcached because:
 - Native Laravel cache driver support
@@ -319,6 +330,37 @@ curl http://localhost:8000/api/checklists?country=USA
 ### WebSocket Test Page
 
 Open `public/websocket-test.html` in your browser to verify real-time updates end-to-end.
+
+Steps:
+1. Visit `http://localhost:8000/websocket-test.html`.
+2. Wait for the status pill to read “Connected to Soketi,” then click **Subscribe** for the desired country (USA/Germany).
+3. In another terminal, update an employee through HR Service:
+   ```bash
+   curl -s -X PUT http://localhost:8001/api/employees/18 \
+     -H "Content-Type: application/json" \
+     -d '{"name":"Jane","last_name":"Doe","salary":92000,"ssn":"111-22-3333","address":"456 Demo Ave","country":"USA"}'
+   ```
+4. You should immediately see both `employee.updated` and `checklist.updated` payloads logged on the page. If you do not, ensure Supervisor is running the queue worker (see below).
+
+### Background Workers & Observability
+
+- **RabbitMQ consumer** (HubService): started via Supervisor using `php artisan rabbitmq:consume --queue=hub_service_events --routing-key=employee.#`. This keeps the Redis cache synchronized with HR Service events.
+- **Laravel queue worker** (HubService): runs `php artisan queue:work --sleep=1 --tries=3` against Redis. This processes broadcasts and any other queued jobs.
+
+Useful commands:
+
+```bash
+# Check container health and logs
+docker compose logs hub-service --tail=50
+
+# Inspect Supervisor-managed processes inside HubService
+docker compose exec hub-service supervisorctl status
+
+# Follow Soketi activity to confirm WebSocket broadcasts
+docker compose logs -f soketi
+```
+
+If broadcasts stop appearing, confirm Redis is healthy and that the queue worker is running. Because broadcasts now use Redis, the RabbitMQ consumer only needs to handle inter-service events and will not interfere with real-time updates.
 
 ---
 
