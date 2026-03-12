@@ -6,23 +6,22 @@ use App\Listeners\ProcessEmployeeEvent;
 use App\Services\ChecklistService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Config;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
 
 class ConsumeEmployeeEvents extends Command
 {
-    protected $signature = 'rabbitmq:consume
-                            {--exchange=employee_events : Exchange name}
-                            {--queue=hub_service_events : Queue name}
-                            {--routing-key=employee.# : Routing key pattern}';
+    protected $signature = 'employee-events:consume';
 
     protected $description = 'Consume employee events from RabbitMQ and process them';
 
     public function handle(ChecklistService $checklistService): int
     {
-        $exchange = $this->option('exchange');
-        $queueName = $this->option('queue');
-        $routingKey = $this->option('routing-key');
+        $settings = Config::get('events.employee_consumer');
+        $exchange = $settings['exchange'];
+        $queueName = $settings['queue'];
+        $routingKey = $settings['routing_key'];
 
         $this->info("Starting RabbitMQ consumer on exchange '{$exchange}', queue '{$queueName}'");
 
@@ -94,12 +93,14 @@ class ConsumeEmployeeEvents extends Command
 
     private function createConnection(): AMQPStreamConnection
     {
+        $connection = Config::get('events.employee_consumer.connection');
+
         return new AMQPStreamConnection(
-            config('queue.connections.rabbitmq.hosts.0.host', env('RABBITMQ_HOST', 'rabbitmq')),
-            config('queue.connections.rabbitmq.hosts.0.port', env('RABBITMQ_PORT', 5672)),
-            config('queue.connections.rabbitmq.hosts.0.user', env('RABBITMQ_USER', 'guest')),
-            config('queue.connections.rabbitmq.hosts.0.password', env('RABBITMQ_PASSWORD', 'guest')),
-            config('queue.connections.rabbitmq.hosts.0.vhost', env('RABBITMQ_VHOST', '/'))
+            $connection['host'],
+            $connection['port'],
+            $connection['user'],
+            $connection['password'],
+            $connection['vhost']
         );
     }
 }
