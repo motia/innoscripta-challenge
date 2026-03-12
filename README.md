@@ -112,7 +112,7 @@ This platform consists of two Laravel microservices that form a real-time, event
 3. Response returned with appropriate cache headers
 ```
 
-> **Note on HubService database:** HubService currently has no own database. Its read model is built entirely from RabbitMQ events stored in Redis. If the cache is cold (e.g. after a Redis flush), data will not be available until new events arrive. A future improvement would be to add a local read-replica database or a cache warm-up mechanism that fetches from HR Service on startup.
+> **Note on HubService database:** HubService currently has no own database. Its read model is built entirely from RabbitMQ events stored in Redis. If the cache is cold (e.g. after a Redis flush), use the warmup command to pre-populate the cache from HR Service (see [Cache Warmup](#cache-warmup) below).
 
 ---
 
@@ -131,7 +131,7 @@ HubService maintains state exclusively through Redis, populated by RabbitMQ even
 - Cold cache returns 404 until events arrive
 - No historical replay without re-consuming the queue
 
-**Future improvement:** Add a `/warm-up` internal endpoint that fetches all employees from HR Service on HubService startup.
+**Mitigation:** Use the `cache:warmup` command to pre-populate the cache from HR Service (see [Cache Warmup](#cache-warmup)).
 
 ### 2. Country Validation — Strategy Pattern (not database-driven)
 
@@ -232,23 +232,57 @@ schema:{step_id}:{country}        → UI widget config
 steps:{country}                   → navigation steps config
 ```
 
-### Invalidation Rules
+### Delta Updates with Redis Locking
 
-| Event | Invalidated Keys |
+Instead of invalidating the entire checklist cache on every employee event, HubService applies **incremental (delta) updates**:
+
+| Event | Action |
 |---|---|
-| `EmployeeCreated` | `employees:{country}:list`, `checklists:{country}` |
-| `EmployeeUpdated` | `employees:{country}:{id}`, `employees:{country}:list`, `checklists:{country}` |
-| `EmployeeDeleted` | `employees:{country}:{id}`, `employees:{country}:list`, `checklists:{country}` |
+| `EmployeeCreated` | Add employee to list cache, add checklist entry, increment summary counts |
+| `EmployeeUpdated` | Update employee in list cache, re-validate checklist entry, adjust complete/incomplete counts |
+| `EmployeeDeleted` | Remove from list cache, remove checklist entry, decrement summary counts |
+
+**Redis Locking:** To prevent race conditions when multiple queue workers process events for the same country concurrently, delta updates acquire a per-country Redis lock (`checklists:{country}:lock`) before modifying the cache. If the lock cannot be acquired within 5 seconds, the system falls back to full cache invalidation to ensure correctness.
+
+This approach:
+- Avoids expensive full recalculations on every event
+- Maintains consistency with concurrent workers
+- Gracefully degrades under contention
 
 ### TTL Strategy
 
 | Cache Key | TTL | Reason |
 |---|---|---|
-| Employee list | 1 hour | Invalidated on events anyway |
-| Single employee | 1 hour | Invalidated on events anyway |
-| Checklist | 30 minutes | Recalculated on any employee event |
+| Employee list | 1 hour | Updated incrementally on events |
+| Single employee | 1 hour | Updated incrementally on events |
+| Checklist | 30 minutes | Updated via delta on any employee event |
 | Steps config | 24 hours | Static — only changes on deploy |
 | Schema config | 24 hours | Static — only changes on deploy |
+
+### Cache Warmup
+
+To pre-populate the cache after a cold start (e.g., Redis flush, new deployment), run:
+
+```bash
+# Warm up all supported countries
+docker compose exec hub-service php artisan cache:warmup
+
+# Warm up specific countries
+docker compose exec hub-service php artisan cache:warmup --country=USA --country=Germany
+
+# Force refresh even if cache exists
+docker compose exec hub-service php artisan cache:warmup --force
+```
+
+The warmup command:
+1. Fetches all employees from HR Service via its REST API (paginated)
+2. Populates the employee list and individual employee caches
+3. Triggers checklist calculation for each country
+
+This is useful for:
+- Initial deployment when no events have been received yet
+- Recovery after Redis data loss
+- Development/testing to quickly populate test data
 
 ---
 
@@ -401,7 +435,7 @@ docker-compose exec hub-service php artisan test --coverage
 
 ### Production Improvements
 
-- **Cache warm-up:** On HubService startup, fetch all employees from HR Service to pre-populate Redis
+- **Automatic cache warm-up:** Run `cache:warmup` as part of the container startup script or Kubernetes init container
 - **Event replay:** Store raw events in an event store (e.g. PostgreSQL) to rebuild cache on demand
 - **Authentication:** Add Laravel Sanctum to both services; use private Soketi channels with user-scoped auth
 - **Dead Letter Queue:** Route failed RabbitMQ messages to a DLQ for inspection and retry
