@@ -173,6 +173,31 @@ Redis was chosen over Memcached because:
 - Supports key tagging (`Cache::tags([...])`) for grouped invalidation
 - Can be extended for queue/session storage if needed
 
+### 7. Field Objects Drive HubService Validation & Checklists
+
+HubService now builds its validation and checklist rules from dedicated **Field** objects (`hub-service/app/Validation/Fields`).
+Each field encapsulates:
+
+- Form-request validation rules/messages
+- Checklist metadata (label, rule, failure message, inclusion flag)
+- Whether it should appear as a custom column in HubService lists
+
+Country strategies extend `AbstractCountryValidationStrategy`, assembling their field sets once and automatically exposing rules, checklist items, and list columns. HR Service keeps its simpler, hand-written form requests so onboarding remains lightweight there, while HubService benefits from the richer metadata and dynamic schemas.
+
+### 8. Country Registry + Schema Classes
+
+HubService gains a `CountryRegistry` singleton (bound via `CountryServiceProvider`) that wires together:
+
+1. The country-specific validation strategy (input + checklist rules)
+2. A `CountrySchema` implementation supplying dashboards, employee table config, documentation panels, and navigation steps
+
+API controllers now resolve their data by calling the registry rather than hard-coding country branches, so adding a country only requires registering its validation strategy and schema class. Cache keys automatically use the schema output, and controllers validate the `country` query param using `supportedCountriesString()`.
+
+### 9. Salary Currency Clarity
+
+- Whenever salaries are displayed or requested, include the explicit currency (e.g., `salary_currency: "EUR"`) to prevent ambiguity across countries.
+- Money-related icons in the UI should visually reflect the specified currency (symbol or label) so that employees and reviewers immediately know which currency the salary represents.
+
 ---
 
 ## Country Validation Strategy
