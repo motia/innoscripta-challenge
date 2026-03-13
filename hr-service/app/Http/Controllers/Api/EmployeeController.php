@@ -29,7 +29,7 @@ class EmployeeController extends Controller
             $query->byCountry($request->input('country'));
         }
 
-        $employees = $query->paginate($request->input('per_page', 15));
+        $employees = $query->paginate(min($request->input('per_page', 15), 100));
 
         return EmployeeResource::collection($employees);
     }
