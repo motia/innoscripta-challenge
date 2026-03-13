@@ -2,12 +2,21 @@
 
 namespace App\Validation\Strategies;
 
+use App\Validation\Fields\Field;
+
 interface CountryValidationStrategy
 {
     /**
      * Get the country code.
      */
     public function getCountryCode(): string;
+
+    /**
+     * Get field definitions used for validation/checklist.
+     *
+     * @return Field[]
+     */
+    public function fields(): array;
 
     /**
      * Get validation rules for employee input.
