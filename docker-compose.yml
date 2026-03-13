@@ -31,6 +31,7 @@ services:
       - PUSHER_PORT=6001
       - PUSHER_SCHEME=http
       - HR_SERVICE_URL=http://hr-service
+      - HR_SERVICE_HEALTH_PATH=/api/health
     volumes:
       - ./hub-service:/var/www/html
     depends_on:
@@ -39,6 +40,8 @@ services:
       rabbitmq:
         condition: service_healthy
       soketi:
+        condition: service_started
+      hr-service:
         condition: service_started
     networks:
       - hr-platform
