@@ -2,13 +2,17 @@
 
 namespace App\Services;
 
-use App\Validation\CountryValidationFactory;
+use App\Country\CountryRegistry;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class ChecklistService
 {
+    public function __construct(
+        private readonly CountryRegistry $registry
+    ) {}
+
     private const CACHE_TTL_MINUTES = 30;
 
     /**
@@ -29,7 +33,7 @@ class ChecklistService
     private function calculateChecklist(string $country): array
     {
         $employees = $this->getEmployeesFromCache($country);
-        $strategy = CountryValidationFactory::make($country);
+        $strategy = $this->registry->getValidation($country);
         $checklistRules = $strategy->checklistRules();
 
         $employeeChecklists = [];
@@ -145,7 +149,7 @@ class ChecklistService
                 return;
             }
 
-            $strategy = CountryValidationFactory::make($country);
+            $strategy = $this->registry->getValidation($country);
             $checklistRules = $strategy->checklistRules();
             $newEmployeeChecklist = $this->validateEmployee($employee, $checklistRules);
 

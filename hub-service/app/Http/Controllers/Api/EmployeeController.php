@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Country\CountryRegistry;
 use App\Http\Controllers\Controller;
-use App\Validation\CountryValidationFactory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -12,15 +12,17 @@ class EmployeeController extends Controller
 {
     private const CACHE_TTL_HOURS = 1;
 
+    public function __construct(
+        private readonly CountryRegistry $registry
+    ) {}
+
     /**
      * GET /api/employees
      */
     public function index(Request $request): JsonResponse
     {
-        $supported = implode(',', CountryValidationFactory::supportedCountries());
-
         $request->validate([
-            'country' => ['required', 'string', "in:{$supported}"],
+            'country' => ['required', 'string', 'in:' . $this->registry->supportedCountriesString()],
             'page' => ['sometimes', 'integer', 'min:1'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
         ]);
@@ -36,7 +38,7 @@ class EmployeeController extends Controller
         $offset = ($page - 1) * $perPage;
         $paginatedEmployees = array_slice($employees, $offset, $perPage);
 
-        $strategy = CountryValidationFactory::make($country);
+        $strategy = $this->registry->getValidation($country);
         $columns = $this->buildColumnDefinitions($strategy->listColumns());
 
         return response()->json([

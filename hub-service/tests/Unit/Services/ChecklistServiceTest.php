@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Services;
 
+use App\Country\CountryRegistry;
 use App\Services\ChecklistService;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
@@ -13,7 +14,7 @@ class ChecklistServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new ChecklistService();
+        $this->service = new ChecklistService(new CountryRegistry());
     }
 
     public function test_get_checklist_uses_cache(): void

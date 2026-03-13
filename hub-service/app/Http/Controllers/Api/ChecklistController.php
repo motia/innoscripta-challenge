@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Country\CountryRegistry;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ChecklistResource;
 use App\Services\ChecklistService;
@@ -11,7 +12,8 @@ use Illuminate\Http\Request;
 class ChecklistController extends Controller
 {
     public function __construct(
-        private readonly ChecklistService $checklistService
+        private readonly ChecklistService $checklistService,
+        private readonly CountryRegistry $registry
     ) {}
 
     /**
@@ -20,7 +22,7 @@ class ChecklistController extends Controller
     public function index(Request $request): JsonResponse
     {
         $request->validate([
-            'country' => ['required', 'string', 'in:USA,Germany'],
+            'country' => ['required', 'string', 'in:' . $this->registry->supportedCountriesString()],
         ]);
 
         $country = $request->input('country');
